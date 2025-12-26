@@ -3,6 +3,8 @@ import cors from "cors";
 import express, { type Request, type Response } from "express";
 import { envVars } from "./app/config/env";
 import { router } from "./app/routes";
+import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
+import notFound from "./app/middlewares/notFound";
 
 const app = express();
 
@@ -27,5 +29,8 @@ app.get("/", (req: Request, res: Response) => {
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "OK", message: "Service is healthy" });
 });
+
+app.use(globalErrorHandler);
+app.use(notFound);
 
 export default app;

@@ -23,7 +23,7 @@ const startServer = async () => {
     });
 
     // Also run status updates every 6 hours for more frequent checks
-    nodeCron.schedule("0 */6 * * *", async () => {
+    nodeCron  .schedule("0 */6 * * *", async () => {
       console.log("Running periodic travel status update...");
       await TravelPlanService.updateTravelStatuses();
     });

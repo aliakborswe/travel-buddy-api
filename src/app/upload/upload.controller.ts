@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import catchAsync from "../../utils/catchAsync";
-import { sendResponse } from "../../utils/sendResponse";
-import httpStatus from "http-status";
-import AppError from "../../helpers/AppError";
+import httpStatus from "http-status-codes";
+import catchAsync from "../utils/catchAsync";
+import AppError from "../helpers/AppError";
+import { sendResponse } from "../utils/sendResponse";
 
 export const uploadImage = catchAsync(async (req: Request, res: Response) => {
   if (!req.file) {

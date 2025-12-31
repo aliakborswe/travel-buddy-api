@@ -14,6 +14,7 @@ export interface IUser {
   isPremium: boolean;
   isVerified: boolean;
   subscriptionEndDate?: Date;
+  completedTripsCount: number;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;

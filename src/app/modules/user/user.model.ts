@@ -59,6 +59,10 @@ const userSchema = new Schema<IUser>(
     subscriptionEndDate: {
       type: Date,
     },
+    completedTripsCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

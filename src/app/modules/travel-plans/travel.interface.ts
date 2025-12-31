@@ -19,6 +19,7 @@ export interface ITravelPlan {
   itinerary?: string;
   maxTravelers?: number;
   currentTravelers: string[];
+  joinedUser: string[];
   interests: string[];
   status: "planning" | "active" | "completed" | "cancelled";
   createdAt: Date;

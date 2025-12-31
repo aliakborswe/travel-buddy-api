@@ -2,6 +2,7 @@ import { StatusCodes } from "http-status-codes";
 import { TravelPlan } from "./travel.model";
 import AppError from "../../helpers/AppError";
 import { ITravelPlan } from "./travel.interface";
+import { User } from "../user/user.model";
 
 const createTravelPlan = async (userId: string, data: Partial<ITravelPlan>) => {
   const travelPlan = await TravelPlan.create({
@@ -17,8 +18,9 @@ const getAllTravelPlans = async (query: {
   limit?: number | string;
   status?: string;
   userId?: string;
+  joinedUserId?: string;
 }) => {
-  const { page = 1, limit = 10, status, userId } = query;
+  const { page = 1, limit = 10, status, userId, joinedUserId } = query;
 
   const filter: Record<string, unknown> = {};
 
@@ -32,8 +34,13 @@ const getAllTravelPlans = async (query: {
     }
   }
 
-  if (userId) {
+  if (userId && joinedUserId) {
+    // Fetch plans where user is either owner or joined
+    filter.$or = [{ userId: userId }, { joinedUser: joinedUserId }];
+  } else if (userId) {
     filter.userId = userId;
+  } else if (joinedUserId) {
+    filter.joinedUser = joinedUserId;
   }
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -43,6 +50,13 @@ const getAllTravelPlans = async (query: {
     .skip(skip)
     .limit(Number(limit))
     .sort({ createdAt: -1 });
+
+  // Ensure interests field exists for backward compatibility
+  travelPlans.forEach((plan) => {
+    if (!plan.interests) {
+      plan.interests = [];
+    }
+  });
 
   const total = await TravelPlan.countDocuments(filter);
 
@@ -65,6 +79,11 @@ const getTravelPlanById = async (id: string) => {
 
   if (!travelPlan) {
     throw new AppError(StatusCodes.NOT_FOUND, "Travel plan not found");
+  }
+
+  // Ensure interests field is always an array for backward compatibility
+  if (!travelPlan.interests) {
+    travelPlan.interests = [];
   }
 
   return travelPlan;
@@ -170,6 +189,13 @@ const searchTravelPlans = async (query: {
     .limit(Number(limit))
     .sort({ startDate: 1 });
 
+  // Ensure interests field exists for backward compatibility
+  travelPlans.forEach((plan) => {
+    if (!plan.interests) {
+      plan.interests = [];
+    }
+  });
+
   const total = await TravelPlan.countDocuments(filter);
 
   return {
@@ -212,6 +238,12 @@ const requestToJoin = async (planId: string, userId: string) => {
   }
 
   travelPlan.currentTravelers.push(userId);
+
+  // Add user to joinedUser array if not already present
+  if (!travelPlan.joinedUser.includes(userId)) {
+    travelPlan.joinedUser.push(userId);
+  }
+
   await travelPlan.save();
 
   return travelPlan;
@@ -222,6 +254,12 @@ const updateTravelStatuses = async () => {
   currentDate.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
 
   try {
+    // Find plans that will be marked as completed
+    const plansToComplete = await TravelPlan.find({
+      endDate: { $lt: currentDate },
+      status: { $in: ["planning", "active"] },
+    });
+
     // Update plans to "completed" if end date has passed
     const completedPlans = await TravelPlan.updateMany(
       {
@@ -232,6 +270,18 @@ const updateTravelStatuses = async () => {
         $set: { status: "completed" },
       }
     );
+
+    // Increment completedTripsCount for all joined users in completed plans
+    if (plansToComplete.length > 0) {
+      for (const plan of plansToComplete) {
+        if (plan.joinedUser && plan.joinedUser.length > 0) {
+          await User.updateMany(
+            { _id: { $in: plan.joinedUser } },
+            { $inc: { completedTripsCount: 1 } }
+          );
+        }
+      }
+    }
 
     // Update plans to "active" if we're between start and end date
     const activatedPlans = await TravelPlan.updateMany(

@@ -66,6 +66,11 @@ const travelPlanSchema = new Schema<ITravelPlan>(
       type: [String],
       default: [],
     },
+    joinedUser: {
+      type: [String],
+      default: [],
+      ref: "User",
+    },
     interests: {
       type: [String],
       default: [],

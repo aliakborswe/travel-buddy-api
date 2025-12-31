@@ -20,6 +20,11 @@ router.get("/reviewable", checkAuth(), ReviewController.getReviewablePlans);
 
 router.get("/user/:userId", ReviewController.getReviewsByUser);
 
+router.get(
+  "/travel-plan/:travelPlanId",
+  ReviewController.getReviewsByTravelPlan
+);
+
 router.patch(
   "/:id",
   checkAuth(),

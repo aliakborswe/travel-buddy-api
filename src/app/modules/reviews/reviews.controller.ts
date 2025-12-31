@@ -25,10 +25,28 @@ const getReviewsByUser: RequestHandler = catchAsync(async (req, res) => {
     success: true,
     statusCode: StatusCodes.OK,
     message: "Reviews retrieved successfully",
-    data: {
-      reviews: result.reviews,
+    data: result.reviews,
+    meta: {
+      page: result.pagination.page,
+      limit: result.pagination.limit,
+      total: result.pagination.total,
+      totalPage: result.pagination.totalPages,
       averageRating: result.averageRating,
     },
+  });
+});
+
+const getReviewsByTravelPlan: RequestHandler = catchAsync(async (req, res) => {
+  const result = await ReviewService.getReviewsByTravelPlan(
+    req.params.travelPlanId,
+    req.query
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "Reviews retrieved successfully",
+    data: result.reviews,
     meta: {
       page: result.pagination.page,
       limit: result.pagination.limit,
@@ -84,6 +102,7 @@ const getReviewablePlans: RequestHandler = catchAsync(async (req, res) => {
 export const ReviewController = {
   createReview,
   getReviewsByUser,
+  getReviewsByTravelPlan,
   updateReview,
   deleteReview,
   getReviewablePlans,

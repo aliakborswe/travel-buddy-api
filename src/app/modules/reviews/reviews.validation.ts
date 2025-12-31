@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createReviewValidation = z.object({
   body: z.object({
     travelPlanId: z.string().min(1, "Travel plan ID is required"),
+    reviewedUserId: z.string().min(1, "Reviewed user ID is required"),
     rating: z
       .number()
       .min(1, "Rating must be at least 1")

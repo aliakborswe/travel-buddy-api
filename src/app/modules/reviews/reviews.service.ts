@@ -1,4 +1,5 @@
 import { StatusCodes } from "http-status-codes";
+import { Types } from "mongoose";
 import { Review } from "./reviews.model";
 import { TravelPlan } from "../travel-plans/travel.model";
 import AppError from "../../helpers/AppError";
@@ -31,14 +32,32 @@ const createReview = async (reviewerId: string, data: Partial<IReview>) => {
     );
   }
 
+  // Check if reviewed user was part of the travel plan
+  const reviewedUserWasParticipant =
+    travelPlan.userId.toString() === data.reviewedUserId ||
+    travelPlan.currentTravelers.includes(data.reviewedUserId!);
+
+  if (!reviewedUserWasParticipant) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      "You can only review users who participated in this travel plan"
+    );
+  }
+
+  // Prevent reviewing yourself
+  if (reviewerId === data.reviewedUserId) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "You cannot review yourself");
+  }
+
   const review = await Review.create({
     ...data,
     reviewerId,
   });
 
-  return await review.populate([
-    { path: "reviewerId", select: "fullName profileImage" },
-  ]);
+  return await review.populate({
+    path: "reviewerId",
+    select: "fullName profileImage",
+  });
 };
 
 const getReviewsByUser = async (
@@ -49,24 +68,67 @@ const getReviewsByUser = async (
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  const reviews = await Review.find({ reviewerId: userId })
+  // Get reviews where this user was reviewed (not where they wrote reviews)
+  const reviews = await Review.find({ reviewedUserId: userId })
     .populate("reviewerId", "fullName profileImage")
-    .populate("travelPlanId", "destination startDate endDate")
+    .populate("reviewedUserId", "fullName profileImage")
+    .populate("travelPlanId", "destination startDate endDate status")
     .skip(skip)
     .limit(Number(limit))
     .sort({ createdAt: -1 });
 
-  const total = await Review.countDocuments({ reviewerId: userId });
+  const total = await Review.countDocuments({ reviewedUserId: userId });
 
-  // Calculate average rating
+  // Calculate average rating for this user
   const avgRating = await Review.aggregate([
-    { $match: { reviewerId: userId } },
+    { $match: { reviewedUserId: userId } },
     { $group: { _id: null, avgRating: { $avg: "$rating" } } },
   ]);
 
   return {
     reviews,
     averageRating: avgRating.length > 0 ? avgRating[0].avgRating : 0,
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / Number(limit)),
+    },
+  };
+};
+
+const getReviewsByTravelPlan = async (
+  travelPlanId: string,
+  query: { page?: number | string; limit?: number | string }
+) => {
+  const { page = 1, limit = 100 } = query;
+
+  // Check if travel plan exists and is completed
+  const travelPlan = await TravelPlan.findById(travelPlanId);
+
+  if (!travelPlan) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Travel plan not found");
+  }
+
+  if (travelPlan.status !== "completed") {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      "Reviews are only available for completed travel plans"
+    );
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const reviews = await Review.find({ travelPlanId })
+    .populate("reviewerId", "fullName profileImage")
+    .skip(skip)
+    .limit(Number(limit))
+    .sort({ createdAt: -1 });
+
+  const total = await Review.countDocuments({ travelPlanId });
+
+  return {
+    reviews,
     pagination: {
       page: Number(page),
       limit: Number(limit),
@@ -97,7 +159,7 @@ const updateReview = async (
   const updatedReview = await Review.findByIdAndUpdate(reviewId, data, {
     new: true,
     runValidators: true,
-  }).populate([{ path: "reviewerId", select: "fullName profileImage" }]);
+  }).populate({ path: "reviewerId", select: "fullName profileImage" });
 
   return updatedReview;
 };
@@ -170,10 +232,10 @@ const getReviewablePlans = async (userId: string) => {
       const existingReviews = await Review.find({
         travelPlanId: plan._id.toString(),
         reviewerId: userId,
-      }).select("reviewerId");
+      }).select("reviewedUserId");
 
       const reviewedUserIds = existingReviews.map((r) =>
-        r.reviewerId.toString()
+        r.reviewedUserId.toString()
       );
 
       const reviewableUsers = allParticipants.filter(
@@ -199,6 +261,7 @@ const getReviewablePlans = async (userId: string) => {
 export const ReviewService = {
   createReview,
   getReviewsByUser,
+  getReviewsByTravelPlan,
   updateReview,
   deleteReview,
   getReviewablePlans,

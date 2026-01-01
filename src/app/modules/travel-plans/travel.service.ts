@@ -5,6 +5,23 @@ import { ITravelPlan } from "./travel.interface";
 import { User } from "../user/user.model";
 
 const createTravelPlan = async (userId: string, data: Partial<ITravelPlan>) => {
+  // Auto-set status based on dates
+  if (data.startDate && data.endDate) {
+    const now = new Date();
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+
+    if (!data.status) {
+      if (now < startDate) {
+        data.status = "planning";
+      } else if (now >= startDate && now <= endDate) {
+        data.status = "active";
+      } else if (now > endDate) {
+        data.status = "completed";
+      }
+    }
+  }
+
   const travelPlan = await TravelPlan.create({
     ...data,
     userId,
@@ -105,6 +122,24 @@ const updateTravelPlan = async (
       StatusCodes.FORBIDDEN,
       "You are not authorized to update this travel plan"
     );
+  }
+
+  // Auto-update status based on dates if dates are being updated
+  if (data.startDate || data.endDate) {
+    const startDate = data.startDate || travelPlan.startDate;
+    const endDate = data.endDate || travelPlan.endDate;
+    const now = new Date();
+
+    // Only auto-update status if it's not cancelled
+    if (travelPlan.status !== "cancelled" && data.status !== "cancelled") {
+      if (now < new Date(startDate)) {
+        data.status = "planning";
+      } else if (now >= new Date(startDate) && now <= new Date(endDate)) {
+        data.status = "active";
+      } else if (now > new Date(endDate)) {
+        data.status = "completed";
+      }
+    }
   }
 
   const updatedTravelPlan = await TravelPlan.findByIdAndUpdate(id, data, {
